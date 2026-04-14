@@ -49,3 +49,169 @@ footer {
   <script src="script.js"></script>
 </body>
 </html>
+
+
+
+## Efficient Single-GPU Performance Modeling for LLM Training Time Prediction Using RTX 4090
+
+## Abstract
+
+Training Large Language Models (LLMs) has emerged as one of the most computationally intensive and resource-demanding processes in modern artificial intelligence. With models scaling to billions of parameters, accurately estimating training time is crucial for efficient resource allocation, cost optimization, and experimental planning. Existing approaches for predicting training time rely either on full-system simulation, which is computationally expensive, or partial execution, which incurs significant cost and time overhead.
+
+In this paper, we propose a comprehensive operator-level performance modeling framework for predicting end-to-end LLM training time on a single GPU, specifically the NVIDIA RTX 4090. Our approach decomposes the LLM computation graph into atomic operators, performs extensive micro-benchmarking across diverse configurations, and employs machine learning-based regression models to estimate operator runtime. By leveraging the repetitive structure of transformer architectures and simplifying distributed communication overhead into a single-GPU paradigm, we significantly reduce modeling complexity while maintaining high accuracy.
+
+We validate our framework using Qwen3.5-0.8B and demonstrate realistic use-case scenarios with varying token scales (10B–100B tokens). Our approach provides a scalable, efficient, and practical alternative to traditional methods, enabling accurate prediction without executing expensive training runs.
+
+## Index Terms
+
+Large Language Models, Performance Modeling, GPU Computing, RTX 4090, Operator-Level Modeling, Machine Learning Systems
+
+## I. Introduction
+
+The rapid evolution of Large Language Models (LLMs) has fundamentally transformed artificial intelligence. However, training these models is extremely expensive in terms of both time and computational resources. Predicting training time beforehand is therefore critical for planning, budgeting, and efficient system utilization.
+
+Despite its importance, training time prediction remains challenging due to heterogeneous workloads, hardware dependency, and complex execution pipelines. Existing solutions such as simulation-based and sampling-based approaches are either too slow or too costly.
+
+This work proposes a novel operator-level modeling framework that eliminates the need for simulation or execution by learning runtime behavior directly from micro-benchmarks.
+
+## II. Problem Statement
+
+The goal is to accurately predict end-to-end LLM training time without executing training. This is difficult due to heterogeneous operations, nonlinear hardware behavior, and limitations of existing methods.
+
+We reformulate the problem as a data-driven operator-level prediction task.
+
+## III. Proposed Approach
+
+We model training as a composition of atomic operators and use regression models to predict their runtime. Transformer repetition allows scalability.
+
+## IV. Methodology
+
+We formalize our approach as a structured pipeline consisting of six key stages:
+
+### Step 1: Choose LLM Model
+
+We begin by selecting the target LLM architecture (e.g., Qwen3.5-0.8B). The model configuration includes parameters such as number of layers, hidden size, sequence length, and attention heads.
+
+### Step 2: Break Model into Operators
+
+The selected model is decomposed into atomic operators such as:
+
+* GEMM (matrix multiplications)
+* Attention (QKV projections, softmax)
+* Normalization (LayerNorm/RMSNorm)
+* Activation functions
+
+This step converts the model into a structured operator graph.
+
+### Step 3: Micro-Benchmarking (Runtime Collection)
+
+Each operator is independently benchmarked on RTX 4090 across multiple configurations:
+
+* Batch size (b)
+* Sequence length (l)
+* Hidden dimension (d)
+* Attention heads (h)
+
+This produces a dataset mapping input configurations to execution time.
+
+### Step 4: Build Regression Models
+
+We train machine learning models such as:
+
+* Random Forest
+* XGBoost
+
+These models learn nonlinear relationships between operator parameters and runtime.
+
+### Step 5: Combine Operator Predictions
+
+Using the trained regressors, we predict runtime for each operator instance in the model. Since transformer layers repeat, predictions are scaled accordingly.
+
+### Step 6: Predict Full Training Runtime
+
+Finally, we aggregate all operator runtimes and add system overhead (GPU–CPU offload) to estimate total training time.
+
+## V. Mathematical Formulation
+
+T_total = L × (Σ T_op) + T_offload
+
+Where L is number of layers and T_op represents operator runtime.
+
+## VI. Use Cases and Case Study
+
+To demonstrate the practical applicability of our framework, we evaluate it using real-world training scenarios.
+
+### A. Model Selection
+
+We use Qwen3.5-0.8B as the base model due to its moderate size and transformer-based architecture.
+
+### B. Token Scale Experiments
+
+We simulate training under different dataset scales:
+
+1. **10 Billion Tokens**
+
+* Represents small-scale training or fine-tuning
+* Prediction shows manageable training duration on single RTX 4090
+* Useful for startups and academic research
+
+2. **50 Billion Tokens**
+
+* Medium-scale training scenario
+* Highlights scaling behavior of operator-level modeling
+* Shows linear growth in compute-heavy operators
+
+3. **100 Billion Tokens**
+
+* Large-scale pretraining scenario
+* Demonstrates long-duration training feasibility estimation
+* Reveals bottlenecks such as GEMM and attention dominating runtime
+
+### C. Observations
+
+* Training time scales approximately linearly with token count
+* Compute-bound operators dominate at higher scales
+* Offload cost becomes noticeable in long training runs
+
+### D. Practical Applications
+
+This framework can be used for:
+
+* GPU resource planning
+* Cost estimation before training
+* Comparing model configurations
+* Optimizing batch size and sequence length
+
+## VII. Experimental Setup
+
+We evaluate using RTX 4090 and Qwen3.5-0.8B. Micro-benchmarks generate training data.
+
+## VIII. Results and Analysis
+
+### A. Prediction Accuracy
+
+The model closely matches actual runtime trends.
+
+### B. Operator Contribution
+
+GEMM and attention dominate runtime.
+
+### C. Scalability
+
+The framework scales efficiently across token sizes.
+
+### D. Discussion
+
+Operator-level modeling provides a balance of accuracy and efficiency.
+
+## IX. Related Work
+
+Simulation-based methods are slow. Sampling-based methods are costly. Analytical models lack accuracy.
+
+## X. Conclusion
+
+We proposed an efficient operator-level framework for LLM training time prediction.
+
+## XI. Future Work
+
+Future work includes multi-GPU extension and improved modeling.
