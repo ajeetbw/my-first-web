@@ -270,6 +270,122 @@ Simulation-based methods are slow. Sampling-based methods are costly. Analytical
 
 We proposed an efficient operator-level framework for LLM training time prediction.
 
+
+
+
+2------------
+
+Efficient Single-GPU Performance Modeling for LLM Training Time Prediction Using RTX 4090
+
+
+Abstract
+Training Large Language Models (LLMs) has emerged as one of the most computationally intensive and resource-demanding workloads in modern artificial intelligence. As model sizes scale to hundreds of millions or billions of parameters, accurately estimating training time becomes critical for resource provisioning, cost control, and experimental planning. Existing approaches for training-time prediction typically rely on full-system simulation or partial execution. While effective in some settings, these methods incur substantial computational cost, long turnaround time, or require access to large-scale hardware.
+In this paper, we propose an operator-level, execution-free performance modeling framework for predicting end-to-end LLM training time on a single GPU, with a specific focus on the NVIDIA RTX 4090. Our approach decomposes the LLM computation graph into atomic operators, performs systematic micro-benchmarking across a wide range of configurations, and trains machine-learning-based regression models to predict operator runtime. By exploiting the repetitive structure of transformer architectures and restricting the scope to a single-GPU execution model, we significantly reduce modeling complexity while retaining high predictive accuracy.
+We validate our framework using Qwen-family decoder-only transformer models and demonstrate realistic training-time extrapolations across token scales ranging from 10B to 100B tokens. Empirical data from large-scale A100 training runs is used solely as a reference for operator composition and scaling behavior, not for fitting the RTX 4090 model. The proposed framework provides a scalable, efficient, and practical alternative to simulation- or execution-based approaches, enabling accurate training-time estimation without incurring the cost of full training runs.
+Index Terms—Large Language Models, Performance Modeling, GPU Computing, RTX 4090, Operator-Level Modeling, Machine Learning Systems
+
+
+I. Introduction
+The rapid advancement of Large Language Models (LLMs) has fundamentally reshaped natural language processing and broader artificial intelligence applications. However, this progress comes at the cost of extremely high training time and compute requirements. Even mid-scale models with hundreds of millions of parameters can require weeks or months of continuous GPU execution when trained on large corpora. Consequently, the ability to accurately predict training time before execution has become essential for system planning, budget estimation, and experimental design.
+Despite its importance, training-time prediction remains challenging. LLM training workloads consist of heterogeneous operators with complex memory-access patterns, nonlinear hardware behavior, and deep software stacks. Existing approaches can be broadly categorized into: (1) simulation-based methods, which attempt to model the entire execution pipeline but suffer from high complexity and long runtime; and (2) sampling- or partial-execution-based methods, which require running subsets of training workloads and incur significant cost, especially for large models.
+This work addresses these limitations by proposing an operator-level performance modeling framework that predicts end-to-end training time without executing full training runs or performing system-level simulation. Instead, we learn operator runtime behavior directly from micro-benchmarks on the target GPU. By focusing on single-GPU execution and leveraging the repetitive structure of transformer models, the proposed framework achieves a favorable balance between accuracy, efficiency, and practicality.
+Contributions
+The main contributions of this work are:
+
+Execution-free operator-level modeling: We present a lightweight framework that predicts LLM training time without full execution or simulation, using learned operator runtime models.
+Single-GPU focus with practical relevance: We target RTX 4090 GPUs, addressing a common but underexplored deployment scenario for research labs and small-scale practitioners.
+Data-driven regression modeling: We employ machine-learning regressors to capture nonlinear runtime behavior arising from memory bandwidth, kernel launch overheads, and hardware scheduling effects.
+Empirical grounding and validation: We use real multi-GPU A100 training runs as reference baselines for operator composition and scaling trends, strengthening the realism of our assumptions.
+
+
+II. Problem Statement
+The goal of this work is to accurately predict the end-to-end training time of a transformer-based LLM without executing the training process itself. Formally, given a model configuration (e.g., number of layers, hidden dimension, sequence length) and a target hardware platform (RTX 4090), we aim to estimate total training runtime for a specified number of tokens.
+This problem is challenging due to several factors:
+
+Heterogeneous operator mix: LLM training consists of diverse operators such as GEMMs, attention kernels, normalization, and activation functions, each with distinct performance characteristics.
+Nonlinear hardware behavior: GPU performance is influenced by memory hierarchy, kernel fusion, launch overheads, and scheduling effects that are difficult to capture analytically.
+Limitations of existing approaches: Simulation-based methods are slow and complex, while sampling-based methods require costly partial execution.
+We reformulate training-time prediction as a data-driven operator-level regression problem, where the runtime of each atomic operator is learned from micro-benchmark data and aggregated to estimate total training time.
+
+
+III. Proposed Approach
+Our approach models LLM training as a composition of atomic operators whose runtime can be predicted independently and then aggregated. The key insight is that transformer architectures exhibit a highly repetitive structure: each layer contains a fixed sequence of operations whose dimensions scale predictably with model configuration. This enables scalable prediction without enumerating the entire computation graph.
+To reduce complexity and improve practical usability, we focus on a single-GPU execution model and explicitly exclude distributed communication overheads. This design choice allows us to isolate core kernel-level behavior and build accurate runtime predictors using modest benchmarking effort.
+
+
+IV. Methodology
+We formalize the proposed framework as a six-stage pipeline.
+Step 1: Model Selection
+We begin by selecting a target LLM architecture, such as Qwen3.5–0.8B. The model configuration includes parameters such as number of layers, hidden dimension, sequence length, vocabulary size, and number of attention heads.
+Step 2: Operator Decomposition
+The selected model is decomposed into atomic operators, including:
+
+General matrix multiplications (GEMMs)
+Attention primitives (QKV projections, softmax)
+Normalization layers (LayerNorm or RMSNorm)
+Activation functions
+This decomposition converts the high-level model into a structured operator graph that mirrors real training execution.
+Operator Composition Reference from Empirical Training Runs
+To ground our operator-level abstraction in realistic workloads, we reference operator composition statistics extracted from a full pretraining run of a Qwen1.5–0.5B model executed on 8× NVIDIA A100-SXM4-80GB GPUs. In that run, embedding operations account for approximately 48.4% of total FLOPs, while attention and MLP blocks each contribute around 23.5%. Normalization and activation functions jointly account for less than 5% of total computation.
+This empirical distribution closely aligns with the operator structure assumed in our framework and justifies focusing modeling effort on GEMM-heavy and attention-related operators.
+Step 3: Micro-Benchmarking
+Each operator is independently benchmarked on the RTX 4090 across a wide range of configurations, varying:
+
+Batch size (b)
+Sequence length (l)
+Hidden dimension (d)
+Number of attention heads (h)
+The result is a dataset mapping operator configuration parameters to measured execution time. Benchmarking is performed in isolation to eliminate interference from unrelated kernels.
+Step 4: Regression Model Design
+We train machine-learning regression models to predict operator runtime from configuration parameters. Input features include both raw parameters (e.g., b, l, d, h) and derived quantities such as approximate FLOPs and memory footprint. Tree-based models such as Random Forest and XGBoost are used due to their ability to capture nonlinear interactions and piecewise behavior.
+Unlike analytical FLOP-based models, these regressors implicitly learn the impact of memory bandwidth limitations, kernel launch overheads, and hardware scheduling effects. Standard train–test splits are used to ensure generalization across unseen configurations.
+Step 5: Operator Runtime Aggregation
+Using the trained regressors, we predict runtime for each operator instance in the model. Since transformer layers repeat structurally, operator runtimes are multiplied by the number of layers to obtain per-batch execution time.
+Step 6: End-to-End Training Time Prediction
+Total training time is estimated by aggregating per-batch runtime across all batches and adding fixed system overheads such as GPU–CPU offloading:
+$T_{\text{total}} = L \times \sum T_{\text{op}} + T_{\text{overhead}}$
+where $L$ is the number of layers and $T_{\text{op}}$ denotes operator runtime.
+
+
+V. Use Cases and Case Study
+A. Model Selection
+We evaluate the framework using Qwen-family decoder-only transformer models. Qwen3.5–0.8B is used as the primary prediction target, while Qwen1.5–0.5B training runs on A100 GPUs serve as empirical references for operator composition and scaling behavior.
+B. Operator Composition and Layer Structure
+The reference model consists of 18 transformer layers, each containing multi-head self-attention, MLP blocks, and normalization layers. This structure directly informs the operator decomposition used in our modeling pipeline.
+C. Empirical A100 Training Configuration
+A full pretraining run on 8× NVIDIA A100-SXM4-80GB GPUs processes 8,192 tokens per batch step with a measured batch time of 0.966 seconds. Training time scales nearly linearly with token count from 100B to 500B tokens, validating the assumption of invariant per-batch operator execution.
+D. Per-Batch Computational Breakdown
+Measured per-batch FLOP distribution shows that embedding, attention, and MLP operators dominate total computation, while normalization and activation have negligible impact.
+E. Hardware Utilization Observations
+Despite high-end hardware, measured GPU utilization is approximately 22%, indicating that training is frequently limited by memory access and kernel overhead rather than peak compute. This observation motivates operator-level modeling over analytical peak-based estimates.
+
+
+VI. Hardware Transfer Argument: A100 to RTX 4090
+Although empirical measurements are obtained on multi-GPU A100 systems, they are used strictly as reference baselines. The transferability of insights is justified by three observations:
+
+Operator structure invariance: Transformer operator composition is independent of hardware platform.
+Linear scaling with batch count: Per-batch execution remains stable, enabling extrapolation across token scales.
+Dominance of GEMM-heavy kernels: Core operators exhibit similar computational characteristics across GPUs.
+By learning operator runtimes directly on RTX 4090 hardware, our framework avoids direct performance extrapolation from A100 and instead uses A100 data only to validate modeling assumptions.
+
+
+VII. Results and Analysis
+Predicted operator runtimes on RTX 4090 closely follow expected scaling trends with respect to batch size, sequence length, and hidden dimension. The regression models accurately capture nonlinear behavior arising from memory bandwidth and kernel launch overheads.
+Both predicted and empirical results consistently show that embedding and projection GEMMs dominate training cost, while normalization and activation functions contribute minimally. These trends validate the operator selection and decomposition strategy.
+
+
+VIII. Related Work
+Prior work on LLM training-time prediction can be broadly categorized into simulation-based, sampling-based, and analytical approaches. Simulation-based methods are accurate but computationally expensive. Sampling-based approaches require partial execution and incur high cost. Analytical models based on FLOPs or roofline analysis often fail to capture real-world hardware effects. Our work complements these approaches by providing a lightweight, data-driven alternative.
+
+
+IX. Conclusion
+We presented an operator-level, execution-free framework for predicting LLM training time on a single RTX 4090 GPU. By combining micro-benchmarking with machine-learning regression and leveraging transformer repetition, the proposed approach achieves accurate and efficient training-time estimation without simulation or full execution.
+
+
+X. Future Work
+Future work includes extending the framework to multi-GPU configurations, incorporating communication modeling, and improving regression models to handle emerging architectures and fused operators.
+
+
 ## XI. Future Work
 
 Future work includes multi-GPU extension and improved modeling.
